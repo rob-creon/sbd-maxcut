@@ -1,3 +1,5 @@
+from typing import List
+
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,17 +8,15 @@ from tqdm import tqdm
 import algorithms
 
 
-def count_misses(S: np.ndarray, T: np.ndarray, n):
-    le1 = S[S >= n]
-    re1 = T[T < n]
-    error1 = len(le1) + len(re1)
-    le2 = S[S > n]
-    re2 = T[T <= n]
-    error2 = len(le2) + len(re2)
-    return min(error1, error2)
+def asym_error(S_size_, T_size_, S_, T_):
+    return len(S_[S_ >= S_size_]) + len(T_[T_ < S_size_])
 
 
-def test_spectral(n, p, q, trials=50):
+def count_misses(S_size, T_size, S: np.ndarray, T: np.ndarray):
+    return min(asym_error(S_size, T_size, S, T), asym_error(T_size, S_size, T, S))
+
+
+def test_spectral(S_size, T_size, p, q, trials=10):
     """
     TODO will be deleted eventually
     :param n: number of vertices in a block
@@ -27,9 +27,11 @@ def test_spectral(n, p, q, trials=50):
     """
 
     algs = {
-        "Normalized Laplacian": algorithms.NormalizedLaplacianMethod(),
-        "AugAdj{-1,1}": algorithms.AugmentedAdjacencyMethod(-1, 1),
-        "DefAdj": algorithms.AugmentedAdjacencyMethod(1, 0)
+        # "$I-D^{-1/2}AD^{1/2}$": algorithms.NormalizedLaplacianMethod(),
+        "$D-A$": algorithms.StandardLaplacianMethod(),
+        # "$I-2A$": algorithms.AugmentedAdjacencyMethod(-1, 1),
+        # "Energy": algorithms.EnergyMethod(),
+        # "$A$": algorithms.AugmentedAdjacencyMethod(1, 0)
     }
 
     misses_ts = {}
@@ -37,17 +39,21 @@ def test_spectral(n, p, q, trials=50):
         num_blocks = 2
         Gp = [[p if i == j else q for j in range(num_blocks)]
               for i in range(num_blocks)]
-        G = nx.stochastic_block_model([n, n], Gp)
+        G = nx.stochastic_block_model([S_size, T_size], Gp)
 
         for alg_name in algs:
             solver = algs[alg_name]
             S, T, weights = solver.solve_sbm(G)
             if alg_name not in misses_ts:
                 misses_ts[alg_name] = []
-            misses_ts[alg_name].append(count_misses(S, T, n))
+
+            misses_ts[alg_name].append(count_misses(S_size, T_size, S, T))
 
             if trial == trials-1 and weights is not None:
                 plt.plot(weights, label=alg_name)
+                if asym_error
+                plt.scatter(S[S >= S_size], weights[S[S >= S_size]], label=alg_name)
+                plt.scatter(T[T < S_size], weights[T[T < S_size]], label=alg_name)
 
     plt.title('Solver Weights')
     plt.xlabel('Vertex')
@@ -56,7 +62,7 @@ def test_spectral(n, p, q, trials=50):
     plt.show()
 
     for alg_name in algs:
-        plt.plot(np.arange(1, trials+1), misses_ts[alg_name], label=alg_name)
+        plt.plot(np.arange(1, trials+1), misses_ts[alg_name], label=f'{alg_name}, avg={np.mean(misses_ts[alg_name])}')
     plt.title('Spectral Error')
     plt.xlabel('Trial')
     plt.ylabel('Misses')
@@ -65,4 +71,4 @@ def test_spectral(n, p, q, trials=50):
 
 
 if __name__ == '__main__':
-    test_spectral(100, 0.53, 0.47)
+    test_spectral(10, 10, .53, .47)
